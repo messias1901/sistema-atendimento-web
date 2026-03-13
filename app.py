@@ -34,13 +34,18 @@ if st.sidebar.button("Sair"):
 def criar_banco():
     conn = sqlite3.connect('atendimentos.db')
     c = conn.cursor()
-    # Adicionamos a coluna 'usuario_dono' para rastrear de quem é o dado
+    # Cria a tabela se não existir
     c.execute('''CREATE TABLE IF NOT EXISTS atendimentos 
-                 (data TEXT, ra TEXT, nome TEXT, curso TEXT, serie TEXT, turno TEXT, descricao TEXT, usuario_dono TEXT)''')
+                 (data TEXT, ra TEXT, nome TEXT, curso TEXT, serie TEXT, turno TEXT, descricao TEXT)''')
+    
+    # Tenta adicionar a coluna usuario_dono caso ela ainda não exista (Evita o DatabaseError)
+    try:
+        c.execute("ALTER TABLE atendimentos ADD COLUMN usuario_dono TEXT")
+    except:
+        pass # Se a coluna já existir, ele não faz nada
+        
     conn.commit()
     conn.close()
-
-criar_banco()
 
 st.title(f"📝 Meus Atendimentos")
 
