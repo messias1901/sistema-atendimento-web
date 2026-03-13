@@ -87,3 +87,43 @@ if not df.empty:
     st.download_button("📥 Baixar Meus Dados (Excel)", data=csv, file_name=f"atendimentos_{usuario_atual}.csv", mime="text/csv")
 else:
     st.info("Você ainda não possui atendimentos registrados.")
+
+# --- A PARTIR DESTA LINHA (Substitua o final do seu app.py) ---
+st.divider()
+
+# Título dinâmico dependendo de quem logou
+if usuario_atual == "admin":
+    st.subheader("📊 Painel de Controle (ADMIN) - Todos os Registros")
+else:
+    st.subheader("📊 Meus Registros Salvos")
+
+conn = sqlite3.connect('atendimentos.db')
+
+# Lógica de busca: Admin vê tudo, Usuário vê só o seu
+if usuario_atual == "admin":
+    query = "SELECT * FROM atendimentos"
+    df = pd.read_sql_query(query, conn)
+else:
+    query = "SELECT * FROM atendimentos WHERE usuario_dono = ?"
+    df = pd.read_sql_query(query, conn, params=(usuario_atual,))
+
+conn.close()
+
+if not df.empty:
+    # Mostra a tabela na tela
+    st.dataframe(df)
+    
+    # Prepara o arquivo para baixar
+    csv = df.to_csv(index=False).encode('utf-8-sig')
+    
+    # Nome do botão também muda para o Admin
+    label_botao = "📥 Baixar Relatório Geral (Excel)" if usuario_atual == "admin" else "📥 Baixar Meus Dados"
+    
+    st.download_button(
+        label=label_botao,
+        data=csv,
+        file_name=f"atendimentos_{usuario_atual}.csv",
+        mime="text/csv"
+    )
+else:
+    st.info("Nenhum registro encontrado.")
