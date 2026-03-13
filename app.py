@@ -94,4 +94,4 @@ with st.form("atendimento_form", clear_on_submit=True):
 # --- 6. VISUALIZAÇÃO E RELATÓRIO ---
 st.divider()
 
-if usuario_atual
+if usuario_atual;
