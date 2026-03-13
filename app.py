@@ -94,3 +94,70 @@ if escolha == "Gerenciar Usuários" and perfil_atual == "admin":
             new_p = st.text_input("Senha", type="password")
             new_perf = st.selectbox("Nível de Acesso", ["coordenador", "admin"])
             if st.form_submit_button("Cadastrar Usuário"):
+                if new_u and new_p:
+                    try:
+                        conn = sqlite3.connect('atendimentos.db')
+                        c = conn.cursor()
+                        c.execute("INSERT INTO usuarios VALUES (?,?,?)", (new_u, new_p, new_perf))
+                        conn.commit()
+                        conn.close()
+                        st.success(f"Usuário {new_u} criado com sucesso!")
+                    except:
+                        st.error("Erro: Este nome de usuário já está em uso.")
+                else:
+                    st.warning("Preencha todos os campos.")
+
+    with tab_lista:
+        conn = sqlite3.connect('atendimentos.db')
+        df_u = pd.read_sql_query("SELECT username, perfil FROM usuarios", conn)
+        conn.close()
+        st.table(df_u)
+
+# --- 8. FUNCIONALIDADE: FORMULÁRIO DE ATENDIMENTO ---
+elif escolha == "Registrar Atendimento":
+    st.title("📝 Novo Atendimento")
+    with st.form("form_atendimento", clear_on_submit=True):
+        col1, col2 = st.columns(2)
+        with col1:
+            data = st.date_input("Data", value=datetime.now())
+            ra = st.text_input("RA do Aluno")
+            curso = st.selectbox("Curso", ["Direito", "Engenharia", "Administração", "Psicologia", "Outros"])
+        with col2:
+            nome = st.text_input("Nome do Aluno")
+            serie = st.selectbox("Série", ["1ª", "2ª", "3ª", "4ª", "5ª", "Pós"])
+            turno = st.selectbox("Turno", ["Matutino", "Vespertino", "Noturno"])
+        
+        desc = st.text_area("Descrição da Ocorrência")
+        
+        if st.form_submit_button("Salvar Registro"):
+            if nome and ra:
+                conn = sqlite3.connect('atendimentos.db')
+                c = conn.cursor()
+                c.execute("INSERT INTO atendimentos VALUES (?,?,?,?,?,?,?,?)", 
+                          (data.strftime("%d/%m/%Y"), ra, nome, curso, serie, turno, desc, usuario_atual))
+                conn.commit()
+                conn.close()
+                st.success("Atendimento registrado com sucesso!")
+            else:
+                st.error("Nome e RA são obrigatórios.")
+
+# --- 9. FUNCIONALIDADE: VISUALIZAÇÃO DE DADOS ---
+elif escolha == "Visualizar Registros":
+    st.title("📊 Registros")
+    
+    conn = sqlite3.connect('atendimentos.db')
+    if perfil_atual == "admin":
+        st.info("Visualizando todos os registros do sistema (Modo Admin).")
+        df = pd.read_sql_query("SELECT * FROM atendimentos", conn)
+    else:
+        st.info(f"Visualizando apenas seus atendimentos, {usuario_atual.capitalize()}.")
+        df = pd.read_sql_query("SELECT * FROM atendimentos WHERE usuario_dono = ?", conn, params=(usuario_atual,))
+    conn.close()
+
+    if not df.empty:
+        st.dataframe(df, use_container_width=True)
+        # Exportação
+        csv = df.to_csv(index=False).encode('utf-8-sig')
+        st.download_button("📥 Baixar Planilha", csv, f"relatorio_{usuario_atual}.csv", "text/csv")
+    else:
+        st.warning("Nenhum atendimento encontrado.")
