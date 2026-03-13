@@ -3,24 +3,49 @@ import pandas as pd
 import sqlite3
 from datetime import datetime
 
-# Configuração da Página
-st.set_page_config(page_title="Coordenação Web", layout="centered")
+st.set_page_config(page_title="Sistema Privado - Coordenação", layout="centered")
 
-# Função para conectar ao banco de dados interno
+# --- SISTEMA DE LOGIN SIMPLES ---
+if "autenticado" not in st.session_state:
+    st.session_state.autenticado = False
+
+if not st.session_state.autenticado:
+    st.title("🔐 Acesso Restrito")
+    user_input = st.text_input("Usuário").lower().strip()
+    pass_input = st.text_input("Senha", type="password")
+    
+    if st.button("Entrar"):
+        if user_input in st.secrets["usuarios"] and pass_input == st.secrets["usuarios"][user_input]:
+            st.session_state.autenticado = True
+            st.session_state.usuario_logado = user_input
+            st.rerun()
+        else:
+            st.error("Usuário ou senha incorretos.")
+    st.stop()
+
+# --- SE CHEGOU AQUI, ESTÁ LOGADO ---
+usuario_atual = st.session_state.usuario_logado
+st.sidebar.write(f"Logado como: **{usuario_atual.capitalize()}**")
+if st.sidebar.button("Sair"):
+    st.session_state.autenticado = False
+    st.rerun()
+
+# --- BANCO DE DATOS (COM COLUNA DE USUÁRIO) ---
 def criar_banco():
     conn = sqlite3.connect('atendimentos.db')
     c = conn.cursor()
+    # Adicionamos a coluna 'usuario_dono' para rastrear de quem é o dado
     c.execute('''CREATE TABLE IF NOT EXISTS atendimentos 
-                 (data TEXT, ra TEXT, nome TEXT, curso TEXT, serie TEXT, turno TEXT, descricao TEXT)''')
+                 (data TEXT, ra TEXT, nome TEXT, curso TEXT, serie TEXT, turno TEXT, descricao TEXT, usuario_dono TEXT)''')
     conn.commit()
     conn.close()
 
 criar_banco()
 
-st.title("📝 Coordenação - Atendimentos")
+st.title(f"📝 Meus Atendimentos")
 
-# Formulário
-with st.form("meu_formulario", clear_on_submit=True):
+# Formulário de Cadastro
+with st.form("form_privado", clear_on_submit=True):
     col1, col2 = st.columns(2)
     with col1:
         data = st.date_input("Data", value=datetime.now())
@@ -32,43 +57,33 @@ with st.form("meu_formulario", clear_on_submit=True):
         turno = st.selectbox("Turno", ["Matutino", "Vespertino", "Noturno"])
     
     descricao = st.text_area("Descrição")
-    btn_salvar = st.form_submit_button("Salvar Registro")
+    if st.form_submit_button("Salvar Registro"):
+        if nome and ra:
+            conn = sqlite3.connect('atendimentos.db')
+            c = conn.cursor()
+            c.execute("INSERT INTO atendimentos VALUES (?,?,?,?,?,?,?,?)", 
+                      (data.strftime("%d/%m/%Y"), ra, nome, curso, serie, turno, descricao, usuario_atual))
+            conn.commit()
+            conn.close()
+            st.success("Salvo apenas na sua conta!")
+        else:
+            st.error("Preencha Nome e RA.")
 
-if btn_salvar:
-    if nome and ra:
-        conn = sqlite3.connect('atendimentos.db')
-        c = conn.cursor()
-        c.execute("INSERT INTO atendimentos VALUES (?,?,?,?,?,?,?)", 
-                  (data.strftime("%d/%m/%Y"), ra, nome, curso, serie, turno, descricao))
-        conn.commit()
-        conn.close()
-        st.success("Salvo com sucesso!")
-    else:
-        st.error("Preencha Nome e RA.")
-
-# --- PARTE DE GERENCIAMENTO (BAIXAR EXCEL) ---
+# --- VISUALIZAÇÃO FILTRADA (SEGURANÇA) ---
 st.divider()
-st.subheader("📊 Gerenciar Dados")
+st.subheader("📊 Meus Registros Salvos")
 
 conn = sqlite3.connect('atendimentos.db')
-df = pd.read_sql_query("SELECT * FROM atendimentos", conn)
+# O segredo está aqui: filtramos no banco apenas os dados do usuário atual
+query = "SELECT * FROM atendimentos WHERE usuario_dono = ?"
+df = pd.read_sql_query(query, conn, params=(usuario_atual,))
 conn.close()
 
 if not df.empty:
-    st.write("Últimos registros:")
-    st.dataframe(df.tail(5))
+    st.dataframe(df.drop(columns=['usuario_dono'])) # Removemos a coluna de usuário da visualização para ficar limpo
     
-    # Botão para baixar o Excel
-    import io
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-        df.to_excel(writer, index=False, sheet_name='Atendimentos')
-    
-    st.download_button(
-        label="📥 Baixar Planilha Completa (Excel)",
-        data=buffer.getvalue(),
-        file_name=f"atendimentos_{datetime.now().strftime('%d_%m_%Y')}.xlsx",
-        mime="application/vnd.ms-excel"
-    )
+    # Exportação exclusiva dos dados dele
+    csv = df.to_csv(index=False).encode('utf-8-sig')
+    st.download_button("📥 Baixar Meus Dados (Excel)", data=csv, file_name=f"atendimentos_{usuario_atual}.csv", mime="text/csv")
 else:
-    st.info("Nenhum atendimento registrado ainda.")
+    st.info("Você ainda não possui atendimentos registrados.")
