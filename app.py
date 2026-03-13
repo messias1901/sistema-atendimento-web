@@ -164,7 +164,15 @@ elif escolha == "📊 Visualizar Registros":
 
     if not df.empty:
         st.dataframe(df, use_container_width=True)
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 Exportar para Excel/CSV", csv, f"atendimentos_{usuario_atual}.csv", "text/csv")
+        
+        # AJUSTADO: sep=';' e utf-8-sig para compatibilidade total com Excel no Brasil
+        csv = df.to_csv(index=False, sep=';').encode('utf-8-sig')
+        
+        st.download_button(
+            label="📥 Exportar para Excel", 
+            data=csv, 
+            file_name=f"atendimentos_{usuario_atual}_{datetime.now().strftime('%d_%m_%Y')}.csv", 
+            mime="text/csv"
+        )
     else:
         st.info("Nenhum dado registrado.")
