@@ -94,4 +94,38 @@ with st.form("atendimento_form", clear_on_submit=True):
 # --- 6. VISUALIZAÇÃO E RELATÓRIO ---
 st.divider()
 
-if usuario_atual;
+if usuario_atual == "admin":
+    st.subheader("📊 Relatório Geral (Todos os Coordenadores)")
+    query = "SELECT * FROM atendimentos"
+    params = ()
+else:
+    st.subheader(f"📊 Meus Registros ({usuario_atual.capitalize()})")
+    query = "SELECT * FROM atendimentos WHERE usuario_dono = ?"
+    params = (usuario_atual,)
+
+try:
+    conn = sqlite3.connect('atendimentos.db')
+    df = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+
+    if not df.empty:
+        # Se for admin, mostra a coluna de quem atendeu. Se for user comum, esconde.
+        if usuario_atual != "admin":
+            df_display = df.drop(columns=['usuario_dono'])
+        else:
+            df_display = df
+            
+        st.dataframe(df_display, use_container_width=True)
+        
+        # Botão de Download (CSV compatível com Excel)
+        csv = df_display.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label="📥 Baixar Planilha (Excel/CSV)",
+            data=csv,
+            file_name=f"atendimentos_{usuario_atual}_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv"
+        )
+    else:
+        st.info("Nenhum registro encontrado.")
+except Exception as e:
+    st.error("Erro ao carregar dados. Tente reiniciar o app ou salvar um novo dado.")
