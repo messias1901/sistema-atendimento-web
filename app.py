@@ -7,7 +7,7 @@ from datetime import datetime
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Sistema de Gestão - Coordenação", layout="wide")
 
-# --- 2. BANCO DE DADOS (COM TABELA DE UTILIZADORES) ---
+# --- 2. BANCO DE DADOS (CRIAÇÃO AUTOMÁTICA) ---
 def inicializar_banco():
     conn = sqlite3.connect('atendimentos.db')
     c = conn.cursor()
@@ -19,7 +19,7 @@ def inicializar_banco():
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (username TEXT PRIMARY KEY, password TEXT, perfil TEXT)''')
     
-    # Criar utilizador admin padrão se não existir
+    # Criar utilizador admin padrão se não existir (Login: admin / Senha: admin123)
     c.execute("INSERT OR IGNORE INTO usuarios (username, password, perfil) VALUES ('admin', 'admin123', 'admin')")
     
     conn.commit()
@@ -27,117 +27,70 @@ def inicializar_banco():
 
 inicializar_banco()
 
-# --- 3. SISTEMA DE LOGIN ---
+# --- 3. INICIALIZAÇÃO DO ESTADO DA SESSÃO (Evita o AttributeError) ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 
+if "usuario_logado" not in st.session_state:
+    st.session_state.usuario_logado = None
+
+if "perfil_logado" not in st.session_state:
+    st.session_state.perfil_logado = None
+
+# --- 4. TELA DE LOGIN ---
 if not st.session_state.autenticado:
     st.title("🔐 Acesso à Coordenação")
-    user_input = st.text_input("Utilizador").lower().strip()
-    pass_input = st.text_input("Senha", type="password")
     
-    if st.button("Entrar"):
-        conn = sqlite3.connect('atendimentos.db')
-        c = conn.cursor()
-        c.execute("SELECT password, perfil FROM usuarios WHERE username = ?", (user_input,))
-        res = c.fetchone()
-        conn.close()
+    col_login, _ = st.columns([1, 2])
+    with col_login:
+        user_input = st.text_input("Usuário").lower().strip()
+        pass_input = st.text_input("Senha", type="password")
         
-        if res and res[0] == pass_input:
-            st.session_state.autenticado = True
-            st.session_state.usuario_logado = user_input
-            st.session_state.perfil_logado = res[1]
-            st.rerun()
-        else:
-            st.error("Utilizador ou senha incorretos.")
+        if st.button("Entrar"):
+            conn = sqlite3.connect('atendimentos.db')
+            c = conn.cursor()
+            c.execute("SELECT password, perfil FROM usuarios WHERE username = ?", (user_input,))
+            res = c.fetchone()
+            conn.close()
+            
+            if res and res[0] == pass_input:
+                st.session_state.autenticado = True
+                st.session_state.usuario_logado = user_input
+                st.session_state.perfil_logado = res[1]
+                st.rerun()
+            else:
+                st.error("Usuário ou senha incorretos.")
     st.stop()
 
-# --- 4. MENU LATERAL ---
+# --- 5. VARIÁVEIS DE CONTROLE APÓS LOGIN ---
 usuario_atual = st.session_state.usuario_logado
 perfil_atual = st.session_state.perfil_logado
 
+# --- 6. MENU LATERAL ---
 st.sidebar.title(f"Olá, {usuario_atual.capitalize()}!")
-menu = ["Registos", "Meus Dados"]
+st.sidebar.write(f"Perfil: **{perfil_atual.upper()}**")
+
+opcoes_menu = ["Registrar Atendimento", "Visualizar Registros"]
 if perfil_atual == "admin":
-    menu.append("Gerir Utilizadores")
+    opcoes_menu.append("Gerenciar Usuários")
 
-escolha = st.sidebar.selectbox("Navegação", menu)
+escolha = st.sidebar.selectbox("Navegação", opcoes_menu)
 
-if st.sidebar.button("Sair"):
+if st.sidebar.button("Sair / Logout"):
     st.session_state.autenticado = False
+    st.session_state.usuario_logado = None
+    st.session_state.perfil_logado = None
     st.rerun()
 
-# --- 5. FUNCIONALIDADE: GERIR UTILIZADORES (APENAS ADMIN) ---
-if escolha == "Gerir Utilizadores":
-    st.title("👥 Gestão de Utilizadores")
+# --- 7. FUNCIONALIDADE: GERENCIAR USUÁRIOS (ADMIN APENAS) ---
+if escolha == "Gerenciar Usuários" and perfil_atual == "admin":
+    st.title("👥 Gestão de Usuários")
     
-    tab1, tab2 = st.tabs(["Novo Utilizador", "Utilizadores Atuais"])
+    tab_novo, tab_lista = st.tabs(["Novo Usuário", "Usuários Ativos"])
     
-    with tab1:
-        with st.form("novo_user"):
-            new_user = st.text_input("Nome de Utilizador (ex: ana.paula)").lower().strip()
-            new_pass = st.text_input("Senha Inicial", type="password")
-            new_perfil = st.selectbox("Perfil", ["coordenador", "admin"])
-            if st.form_submit_button("Criar Utilizador"):
-                if new_user and new_pass:
-                    try:
-                        conn = sqlite3.connect('atendimentos.db')
-                        c = conn.cursor()
-                        c.execute("INSERT INTO usuarios VALUES (?,?,?)", (new_user, new_pass, new_perfil))
-                        conn.commit()
-                        conn.close()
-                        st.success(f"Utilizador {new_user} criado!")
-                    except:
-                        st.error("Este utilizador já existe.")
-                else:
-                    st.warning("Preencha todos os campos.")
-
-    with tab2:
-        conn = sqlite3.connect('atendimentos.db')
-        df_users = pd.read_sql_query("SELECT username, perfil FROM usuarios", conn)
-        conn.close()
-        st.dataframe(df_users, use_container_width=True)
-
-# --- 6. FUNCIONALIDADE: REGISTOS (FORMULÁRIO) ---
-elif escolha == "Registos":
-    st.title("📝 Novo Atendimento")
-    with st.form("atendimento_form", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        with col1:
-            data = st.date_input("Data", value=datetime.now())
-            ra = st.text_input("RA")
-            curso = st.selectbox("Curso", ["Direito", "Engenharia", "Administração", "Psicologia"])
-        with col2:
-            nome = st.text_input("Nome do Aluno")
-            serie = st.selectbox("Série", ["1ª", "2ª", "3ª", "4ª", "5ª"])
-            turno = st.selectbox("Turno", ["Matutino", "Vespertino", "Noturno"])
-        
-        descricao = st.text_area("Descrição")
-        if st.form_submit_button("Salvar"):
-            if nome and ra:
-                conn = sqlite3.connect('atendimentos.db')
-                c = conn.cursor()
-                c.execute("INSERT INTO atendimentos VALUES (?,?,?,?,?,?,?,?)", 
-                          (data.strftime("%d/%m/%Y"), ra, nome, curso, serie, turno, descricao, usuario_atual))
-                conn.commit()
-                conn.close()
-                st.success("Registado!")
-            else:
-                st.error("Preencha Nome e RA.")
-
-# --- 7. FUNCIONALIDADE: VISUALIZAÇÃO ---
-elif escolha == "Meus Dados":
-    st.title("📊 Registos Guardados")
-    conn = sqlite3.connect('atendimentos.db')
-    if perfil_atual == "admin":
-        df = pd.read_sql_query("SELECT * FROM atendimentos", conn)
-    else:
-        df = pd.read_sql_query("SELECT * FROM atendimentos WHERE usuario_dono = ?", conn, params=(usuario_atual,))
-    conn.close()
-
-    if not df.empty:
-        st.dataframe(df, use_container_width=True)
-        csv = df.to_csv(index=False).encode('utf-8-sig')
-        st.download_button("📥 Baixar Excel (CSV)", csv, "relatorio.csv", "text/csv")
-    else:
-        st.info("Sem registos encontrados.")
+    with tab_novo:
+        with st.form("form_novo_usuario"):
+            new_u = st.text_input("Nome de Usuário").lower().strip()
+            new_p = st.text_input("Senha", type="password")
+            new_perf = st.selectbox("Nível de Acesso", ["coordenador", "admin"])
+            if st.form_submit_button("Cadastrar Usuário"):
