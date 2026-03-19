@@ -134,10 +134,10 @@ elif escolha == "📝 Registrar Atendimento":
         with col1:
             data = st.date_input("Data", value=datetime.now())
             ra = st.text_input("RA")
-            curso = st.selectbox("Curso", ["Direito", "Engenharia", "Administração", "Psicologia", "Outros"])
+            curso = st.selectbox("Curso", ["Administração", "Agronomia", "Arquitetura e Urb.", "Biomedicina", "Ciências Biológicas", "Ciências Contábeis", "Comunicação e Multimeios", "Direito", "Educação Física", "Enfermagem", "Engenharia Civil", "Engenharia Eletrica", "Estética", "Farmácia", "Fisioterapia", "Fonoaudiologia", "Medicina Veterinária", "Moda", "Nutrição", "Odontologia", "Pedagogia", "Processos Gerencias", "Psicologia"])
         with col2:
             nome = st.text_input("Nome")
-            serie = st.selectbox("Série", ["1ª", "2ª", "3ª", "4ª", "5ª"])
+            serie = st.selectbox("Série", ["1ª", "2ª", "3ª", "4ª", "5ª", "6ª", "7ª","8ª"])
             turno = st.selectbox("Turno", ["Matutino", "Vespertino", "Noturno"])
         desc = st.text_area("Descrição")
         if st.form_submit_button("Salvar"):
